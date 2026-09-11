@@ -34,7 +34,8 @@ class AudioPre:
         cpk = torch.load(model_path, map_location="cpu")
         model.load_state_dict(cpk)
         model.eval()
-        if is_half:
+        if is_half and device != "mps":
+            # mps 保持 fp32 权重，避免全 fp16 权重触发 MPS 矩阵乘法断言崩溃
             model = model.half().to(device)
         else:
             model = model.to(device)
@@ -206,7 +207,8 @@ class AudioPreDeEcho:
         cpk = torch.load(model_path, map_location="cpu")
         model.load_state_dict(cpk)
         model.eval()
-        if is_half:
+        if is_half and device != "mps":
+            # mps 保持 fp32 权重，避免全 fp16 权重触发 MPS 矩阵乘法断言崩溃
             model = model.half().to(device)
         else:
             model = model.to(device)

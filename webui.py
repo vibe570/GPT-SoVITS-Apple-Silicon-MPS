@@ -301,10 +301,13 @@ process_name_uvr5 = i18n("人声分离WebUI")
 def change_uvr5():
     global p_uvr5
     if p_uvr5 is None:
+        # Apple Silicon：UVR5 子进程改用 MPS 加速（半精度由 autocast 控制，损失最小）；其余平台保持原逻辑
+        uvr_device = "mps" if torch.backends.mps.is_available() else infer_device
+        uvr_half = True if uvr_device == "mps" else is_half
         cmd = '"%s" -s tools/uvr5/webui.py "%s" %s %s %s' % (
             python_exec,
-            infer_device,
-            is_half,
+            uvr_device,
+            uvr_half,
             webui_port_uvr5,
             is_share,
         )

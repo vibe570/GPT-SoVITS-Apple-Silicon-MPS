@@ -558,7 +558,8 @@ class BSRoformer(Module):
         # complex number multiplication
 
         stft_repr = torch.view_as_complex(stft_repr)
-        mask = torch.view_as_complex(mask)
+        # mps autocast fp16 下 mask 可能是 fp16，先转 fp32 再转复数，保证与 fp32 路径一致的掩码精度
+        mask = torch.view_as_complex(mask.float())
 
         stft_repr = stft_repr * mask
 

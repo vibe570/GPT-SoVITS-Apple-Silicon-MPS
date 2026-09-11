@@ -1,4 +1,5 @@
 # This code is modified from https://github.com/ZFTurbo/
+import contextlib
 import os
 import warnings
 
@@ -135,7 +136,17 @@ class Roformer_Loader:
         window_middle[-fade_size:] *= fadeout
         window_middle[:fade_size] *= fadein
 
-        with torch.amp.autocast("cuda"):
+        # 设备感知的 autocast 上下文：
+        # - mps + is_half：权重保持 fp32，仅计算走 fp16（损失最小且避开 MPS 全 fp16 权重崩溃）
+        # - cuda：保持原有行为
+        # - 其余（cpu / mps fp32）：不使用 autocast
+        if device == "mps" and self.is_half:
+            autocast_ctx = torch.amp.autocast("mps", dtype=torch.float16)
+        elif device == "cuda":
+            autocast_ctx = torch.amp.autocast("cuda")
+        else:
+            autocast_ctx = contextlib.nullcontext()
+        with autocast_ctx:
             with torch.inference_mode():
                 if self.config["training"]["target_instrument"] is None:
                     req_shape = (len(self.config["training"]["instruments"]),) + tuple(mix.shape)
@@ -155,7 +166,8 @@ class Roformer_Loader:
                             part = nn.functional.pad(input=part, pad=(0, C - length), mode="reflect")
                         else:
                             part = nn.functional.pad(input=part, pad=(0, C - length, 0, 0), mode="constant", value=0)
-                    if self.is_half:
+                    if self.is_half and device != "mps":
+                        # mps 下半精度由 autocast 控制，part 保持 fp32 以避免 STFT 回退 CPU 时的额外转换
                         part = part.half()
                     batch_data.append(part)
                     batch_locations.append((i, length))
@@ -295,7 +307,8 @@ class Roformer_Loader:
         state_dict = torch.load(model_path, map_location="cpu")
         model.load_state_dict(state_dict)
 
-        if is_half == False:
+        if is_half == False or device == "mps":
+            # mps：权重保持 fp32，半精度计算由 autocast 控制（全 fp16 权重会触发 MPS 矩阵乘法断言崩溃）
             self.model = model.to(device)
         else:
             self.model = model.half().to(device)

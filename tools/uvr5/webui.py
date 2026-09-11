@@ -12,6 +12,10 @@ i18n = I18nAuto()
 logger = logging.getLogger(__name__)
 import sys
 
+# MPS 设备：复数 STFT 等少数算子 PyTorch 尚未实现，设置回退避免崩溃（模型内部已有 try/except，此处双保险）
+if sys.argv[1] == "mps":
+    os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
+
 import ffmpeg
 import torch
 from bsroformer import Roformer_Loader
