@@ -73,7 +73,7 @@ def uvr(model_name, inp_root, save_root_vocal, paths, save_root_ins, agg, format
                 is_half=is_half,
             )
         if inp_root != "":
-            paths = [os.path.join(inp_root, name) for name in os.listdir(inp_root)]
+            paths = [os.path.join(inp_root, name) for name in os.listdir(inp_root) if not name.startswith('.')]
         else:
             paths = [path.name for path in paths]
         for path in paths:
