@@ -56,6 +56,8 @@ That's **3–6× faster**. The "fp32 weights + fp16 autocast compute" strategy e
 
 2000-word input → 9m 15s audio output, **RTF 0.29**, peak RAM 6.53 GB, CPU/GPU temp 66.2°C, power 17.5 W. Local Mac RTF is lower.
 
+Full Jetson deployment & optimization lives in the sibling repo: [GPT-SoVITS-Jetson](https://github.com/vibe570/GPT-SoVITS-Jetson).
+
 ---
 
 ## 🔧 One-command install (macOS / Apple Silicon)
