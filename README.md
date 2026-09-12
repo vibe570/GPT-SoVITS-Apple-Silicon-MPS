@@ -69,6 +69,85 @@ MPS 上 `v2Pro` / `v3` / `v3_lora` 权重同理——**fp16 半精度在 Apple G
 
 2000 字文本合成 → 9 分 15 秒音频，**RTF 0.29**，峰值 RAM 6.53 GB，CPU/GPU 温度 66.2°C，功耗 17.5W。本地 Mac 推理 RTF 更低。
 
+### 实测环境复现（Apple M5 / 32GB）
+
+以下是本 fork 开发与实测所用的真实环境，按此配置可 1:1 复现 README 中的所有性能数据。
+
+**硬件与系统**
+
+| 项 | 值 |
+|----|----|
+| 芯片 | Apple M5 |
+| 内存 | 32 GB |
+| 架构 | `arm64` |
+| macOS | 27.0 |
+| Python | 3.10.21（conda） |
+| Conda | miniforge3 |
+| FFmpeg | 9.0.1 |
+
+**PyTorch + MPS**
+
+| 包 | 版本 | 备注 |
+|----|------|------|
+| torch | 2.10.0 | MPS 已编译并可用，`PYTORCH_ENABLE_MPS_FALLBACK=1` |
+| torchvision | 0.20.1 | |
+| torchaudio | 2.11.0 | |
+| cuda | 不可用（Mac 无 NVIDIA） | |
+| mps_available | ✅ True | |
+
+**关键依赖（与 `requirements.txt` 对齐后的实际安装版本）**
+
+| 包 | 实测版本 | requirements 约束 | 说明 |
+|----|----------|-------------------|------|
+| funasr | 1.4.15 | `>=1.3.7` | 满足 |
+| transformers | 4.57.6 | `>=4.51,<5` | 满足 |
+| peft | 0.17.1 | `<0.18.0` | ⚠️ 接近上限 |
+| pytorch-lightning | 2.6.6 | `>=2.4` | 满足 |
+| gradio | 4.44.1 | `<5` | 满足 |
+| fastapi | 0.141.1 | `>=0.115.2` | 满足 |
+| modelscope | 1.40.0 | （无约束） | |
+| modelscope-hub | 0.4.2 | — | 自动装 |
+| sentencepiece | 0.2.2 | — | |
+| librosa | 0.10.2 | `==0.10.2` | ✅ 精确对齐 |
+| numpy | 1.26.4 | `<2.0` | 满足 |
+| scipy | 1.15.2 | — | |
+| numba | 0.67.0 | — | |
+| onnxruntime | 1.23.2 | `platform_machine=="arm64"` | 满足 |
+| x-transformers | 2.28.4 | — | |
+| rotary-embedding-torch | 0.9.1 | — | 包名带横线 `rotary-embedding-torch`，import 名 `rotary_embedding_torch` |
+| g2p-en | 2.1.0 | — | |
+| wordsegment | 1.3.1 | — | |
+| pypinyin | 0.55.0 | — | |
+| pyopenjtalk | 0.4.1 | `>=0.4.1` | ✅ |
+| cn2an | 0.5.24 | — | |
+| jieba / jieba_fast | 0.42.1 / 0.53 | — | |
+| split-lang | 2.1.1 | — | |
+| fast-langdetect | 1.0.1 | `>=0.3.1` | 满足 |
+| OpenCC | 1.4.2 | — | |
+| torchaudio | 2.11.0 | — | |
+| torchmetrics | 1.5.0 | `<=1.5` | ✅ 卡在上限 |
+| pydantic | 2.10.6 | `<=2.10.6` | ✅ 卡在上限 |
+
+**完整环境导出（可复现）**
+
+```bash
+# 方式一：按上面的精确版本手动装（推荐，PyTorch 用 conda-forge）
+conda create -n GPTSoVits python=3.10 -y
+conda activate GPTSoVits
+conda install -c conda-forge pytorch=2.10.0 torchvision=0.20.1 torchaudio=2.11.0 -y
+conda install -c conda-forge ffmpeg=9 -y
+pip install -r extra-req.txt --no-deps
+pip install -r requirements.txt
+# 如果想完全锁版本（防小版本漂移导致行为变化），可把 pip freeze 结果保存为 lock 文件：
+#   pip freeze > requirements.lock
+#   pip install -r requirements.lock
+```
+
+**已知版本坑**
+
+- **torch 2.10.0 + MPS**：Apple Silicon 上 MPS 正常工作，但 v2Pro/v3/v3_lora 权重 fp16 会直接崩溃，本 fork 已在代码层强制 `is_half=False`
+- **peft / torchmetrics / pydantic**：requirements 里有上限约束（分别 `<0.18.0`、`<=1.5`、`<=2.10.6`），别盲目 `pip install -U` 升级，容易炸
+
 ### 一键安装（macOS）
 
 ```bash
