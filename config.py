@@ -192,6 +192,9 @@ if not GPU_INFOS:
     GPU_INDEX.add(0)
 
 infer_device = max(tmp, key=lambda x: (x[2], x[3]))[0]
+if not torch.cuda.is_available() and torch.backends.mps.is_available():
+    infer_device = torch.device("mps")
+    os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")  # Apple Silicon: 未实现的算子回退CPU,保证正确性
 is_half = any(dtype == torch.float16 for _, dtype, _, _ in tmp)
 
 

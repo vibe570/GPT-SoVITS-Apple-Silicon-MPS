@@ -50,8 +50,9 @@ if os.path.exists(txt_path) == False:
     os.makedirs(bert_dir, exist_ok=True)
     if torch.cuda.is_available():
         device = "cuda:0"
-    # elif torch.backends.mps.is_available():
-    #     device = "mps"
+    elif torch.backends.mps.is_available():
+        device = "mps"
+        os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
     else:
         device = "cpu"
     if os.path.exists(bert_pretrained_dir):

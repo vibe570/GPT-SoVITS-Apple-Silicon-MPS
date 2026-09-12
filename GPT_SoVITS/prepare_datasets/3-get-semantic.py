@@ -61,8 +61,9 @@ if os.path.exists(semantic_path) == False:
 
     if torch.cuda.is_available():
         device = "cuda"
-    # elif torch.backends.mps.is_available():
-    #     device = "mps"
+    elif torch.backends.mps.is_available():
+        device = "mps"
+        os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
     else:
         device = "cpu"
     hps = utils.get_hparams_from_file(s2config_path)

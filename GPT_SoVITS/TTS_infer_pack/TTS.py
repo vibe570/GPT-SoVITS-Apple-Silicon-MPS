@@ -320,12 +320,20 @@ class TTS_Config:
 
         self.device = self.configs.get("device", torch.device("cpu"))
         if "cuda" in str(self.device) and not torch.cuda.is_available():
-            print("Warning: CUDA is not available, set device to CPU.")
-            self.device = torch.device("cpu")
+            if torch.backends.mps.is_available():
+                print("Warning: CUDA is not available, set device to MPS.")
+                self.device = torch.device("mps")
+                os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
+            else:
+                print("Warning: CUDA is not available, set device to CPU.")
+                self.device = torch.device("cpu")
 
         self.is_half = self.configs.get("is_half", False)
         if str(self.device) == "cpu" and self.is_half:
             print(f"Warning: Half precision is not supported on CPU, set is_half to False.")
+            self.is_half = False
+        elif str(self.device) == "mps" and self.is_half:
+            print(f"Warning: Half precision is not supported on MPS (v2Pro/v3 models crash), set is_half to False.")
             self.is_half = False
 
         version = self.configs.get("version", None)

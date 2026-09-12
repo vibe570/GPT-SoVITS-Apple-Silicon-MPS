@@ -87,6 +87,7 @@ is_share = os.environ.get("is_share", "False")
 is_share = eval(is_share)
 if "_CUDA_VISIBLE_DEVICES" in os.environ:
     os.environ["CUDA_VISIBLE_DEVICES"] = os.environ["_CUDA_VISIBLE_DEVICES"]
+# MPS 下保持 fp32（fp16 会导致 v2Pro/v3 等模型报 Unsupported dtype Half，实测且慢）
 is_half = eval(os.environ.get("is_half", "True")) and torch.cuda.is_available()
 # is_half=False
 punctuation = set(["!", "?", "…", ",", ".", "-", " "])
@@ -134,6 +135,9 @@ i18n = I18nAuto(language=language)
 
 if torch.cuda.is_available():
     device = "cuda"
+elif torch.backends.mps.is_available():
+    device = "mps"
+    os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")  # Apple Silicon: 未实现的算子回退CPU,保证正确性
 else:
     device = "cpu"
 

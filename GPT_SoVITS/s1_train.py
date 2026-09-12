@@ -108,9 +108,17 @@ def main(args):
     logger = TensorBoardLogger(name=output_dir.stem, save_dir=output_dir)
     os.environ["MASTER_ADDR"] = "localhost"
     os.environ["USE_LIBUV"] = "0"
+    if torch.backends.mps.is_available():
+        os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
     trainer: Trainer = Trainer(
         max_epochs=config["train"]["epochs"],
-        accelerator="gpu" if torch.cuda.is_available() else "cpu",
+        accelerator=(
+            "gpu"
+            if torch.cuda.is_available()
+            else "mps"
+            if torch.backends.mps.is_available()
+            else "cpu"
+        ),
         # val_check_interval=9999999999999999999999,###不要验证
         # check_val_every_n_epoch=None,
         limit_val_batches=0,

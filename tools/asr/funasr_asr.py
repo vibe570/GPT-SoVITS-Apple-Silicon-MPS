@@ -8,6 +8,10 @@ from funasr import AutoModel
 from modelscope import snapshot_download
 from tqdm import tqdm
 
+# 该环境变量会让 FunASR 的 MPS 推理大量算子静默回退 CPU（实测慢约 4 倍），
+# 它是 UVR5 那边用的，对 FunASR 必须移除。
+os.environ.pop("PYTORCH_ENABLE_MPS_FALLBACK", None)
+
 funasr_models = {}  # 存储模型避免重复加载
 FUN_ASR_NANO_MODEL_ID = "FunAudioLLM/Fun-ASR-Nano-2512"
 FUN_ASR_NANO_MODEL_SOURCES = (
@@ -55,7 +59,14 @@ def create_model(language="zh", **kwargs):
     # For non-classic backends, route to multilingual models regardless of language
     if backend in ("fun-asr-nano", "sensevoice") and language != "yue":
         import torch
-        device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        # Mac 优先用 Apple GPU（MPS），实测文字结果与 CPU 逐字一致（同为 fp32）
+        if torch.backends.mps.is_available():
+            device = "mps"
+        elif torch.cuda.is_available():
+            device = "cuda"
+        else:
+            device = "cpu"
         cache_key = f"{language}_{backend}"
         if cache_key in funasr_models:
             return funasr_models[cache_key]

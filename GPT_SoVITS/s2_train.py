@@ -47,7 +47,13 @@ torch.set_float32_matmul_precision("medium")  # 最低精度但最快（也就�
 # from config import pretrained_s2G,pretrained_s2D
 global_step = 0
 
-device = "cpu"  # cuda以外的设备，等mps优化后加入
+if torch.cuda.is_available():
+    device = "cuda"
+elif torch.backends.mps.is_available():
+    device = "mps"
+    os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
+else:
+    device = "cpu"  # cuda以外的设备，等mps优化后加入
 
 
 def main():
