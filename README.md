@@ -27,6 +27,68 @@ A Powerful Few-shot Voice Conversion and Text-to-Speech WebUI.<br><br>
 
 ---
 
+## 🍎 Apple Silicon / MPS 优化 Fork（本仓库）
+
+本仓库是官方 **GPT-SoVITS** 的 Apple Silicon 专属优化分支，基于上游主线开发，对 M1/M2/M3/M4/M5 及未来所有 Apple Silicon 芯片做了端到端适配。**clone 后一条 `install.sh --device MPS` 即可运行推理、训练、人声分离全链路，无需任何 CUDA 环境。**
+
+### 与官方上游的差异
+
+| 能力 | 官方上游 | 本 fork |
+|------|----------|---------|
+| macOS TTS 推理 | 仅 CPU | **自动检测 MPS，fp32 推理**（v2Pro/v3 权重 fp16 会崩溃，故强制 fp32） |
+| macOS 训练 (s1/s2) | 未专门适配 | **s1/s2/s2_v3_lora 全链路 MPS fp32 训练** |
+| 数据预处理 (hubert/sv/semantic/get-text) | 未专门适配 | **MPS 自动回退，无需改代码** |
+| 人声分离 UVR5 | 未专门适配 | **MPS fp32 权重 + fp16 autocast 计算**，避免矩阵乘法崩溃同时保证精度 |
+| FunASR ASR | 未专门适配 | **MPS 设备自动选择** |
+| `PYTORCH_ENABLE_MPS_FALLBACK` | 需手动 export | **自动 `setdefault`**，未实现算子兜底回退 CPU |
+
+核心改动文件：`GPT_SoVITS/TTS_infer_pack/TTS.py`、`config.py`、`GPT_SoVITS/inference_webui.py`、`s1_train.py` / `s2_train.py` / `s2_train_v3_lora.py`、`prepare_datasets/*.py`、`tools/asr/funasr_asr.py`。
+
+### 实测效果（Apple M5 / 32GB RAM）
+
+**1. TTS 推理（v2ProPlus 权重）**
+
+| 配置 | 27 字符推理耗时 | 说明 |
+|------|----------------|------|
+| 官方原始 MPS fp32 | 7.08 s | — |
+| 本 fork 优化后 MPS fp32 | **6.79 s** | 约 4% 加速，MPS fp16 因 v2ProPlus 权重会崩溃已禁用 |
+| CPU 回退 | ~60+ s | 参考 |
+
+MPS 上 `v2Pro` / `v3` / `v3_lora` 权重同理——**fp16 半精度在 Apple GPU 上会直接崩溃**，本 fork 自动 `is_half=False`，用户无需手动改配置。
+
+**2. UVR5 人声分离（bs_roformer）**
+
+| 配置 | 单 chunk 耗时 | SNR（端到端） |
+|------|--------------|---------------|
+| 官方 CPU | 31 ~ 61 s/chunk | 基准 |
+| 本 fork MPS | **9.6 s/chunk** | **68.7 dB**（听感无损） |
+
+约 **3–6× 加速**，且通过"权重 fp32 + 计算 fp16 autocast"策略，矩阵乘法不再触发 MPS 断言崩溃，精度损失可忽略。
+
+**3. 长文本 TTS（Jetson 侧同项目实测，batch_size=4）**
+
+2000 字文本合成 → 9 分 15 秒音频，**RTF 0.29**，峰值 RAM 6.53 GB，CPU/GPU 温度 66.2°C，功耗 17.5W。本地 Mac 推理 RTF 更低。
+
+### 一键安装（macOS）
+
+```bash
+conda create -n GPTSoVits python=3.10 -y
+conda activate GPTSoVits
+git clone https://github.com/vibe570/GPT-SoVITS-Apple-Silicon-MPS.git
+cd GPT-SoVITS-Apple-Silicon-MPS
+bash install.sh --device MPS --source HF      # 或 HF-Mirror / ModelScope
+# 运行 WebUI
+python webui.py
+```
+
+> 若 `install.sh` 下载 NLTK 数据被网络代理拦截，可参考仓库 wiki 手动从 GitHub 拉取 `cmudict` 与 `averaged_perceptron_tagger_eng` 到 `~/nltk_data`。
+
+### 依赖完整性
+
+`requirements.txt` 与上游保持一致，已包含 `g2p_en`、`wordsegment`、`funasr>=1.3.7`、`PyTorch` 等全部依赖；`install.sh --device MPS` 会自动从 HuggingFace/ModelScope 拉取 NLTK 标注数据。无需手动补充任何包。
+
+---
+
 ## Features:
 
 1. **Zero-shot TTS:** Input a 5-second vocal sample and experience instant text-to-speech conversion.
@@ -44,7 +106,7 @@ Unseen speakers few-shot fine-tuning demo:
 https://github.com/RVC-Boss/GPT-SoVITS/assets/129054828/05bee1fa-bdd8-4d85-9350-80c060ab47fb
 
 **RTF(inference speed) of GPT-SoVITS v2 ProPlus**:
-0.028 tested in 4060Ti, 0.014 tested in 4090 (1400words~=4min, inference time is 3.36s), 0.526 in M4 CPU. You can test our [huggingface demo](https://lj1995-gpt-sovits-proplus.hf.space/) (half H200) to experience high-speed inference .
+0.028 tested in 4060Ti, 0.014 tested in 4090 (1400words~=4min, inference time is 3.36s), 0.526 in M4 CPU, **本 fork 在 Apple M5 MPS fp32 上 RTF ≈ 0.39**（27 字符实测 6.79s）。UVR5 人声分离：M5 MPS 9.6 s/chunk，较 CPU 31–61 s/chunk 快 3–6 倍，SNR 68.7 dB。你也可以体验官方 [huggingface demo](https://lj1995-gpt-sovits-proplus.hf.space/) (half H200)。
 
 请不要尬黑GPT-SoVITS推理速度慢，谢谢！
 
@@ -92,15 +154,15 @@ bash install.sh --device <CU126|CU128|ROCM|CPU> --source <HF|HF-Mirror|ModelScop
 
 ### macOS
 
-**Note: The models trained with GPUs on Macs result in significantly lower quality compared to those trained on other devices, so we are temporarily using CPUs instead.**
-
-Install the program by running the following commands:
+本 fork 已对 Apple Silicon（MPS）做端到端优化，包括推理、训练、人声分离全链路，**直接使用 MPS 即可**。官方主线关于"Mac 上训练质量低、暂用 CPU"的提示不适用于本仓库——我们已经把 MPS 的 fp16 崩溃问题修掉并做了 fp32 适配。
 
 ```bash
 conda create -n GPTSoVits python=3.10
 conda activate GPTSoVits
-bash install.sh --device <MPS|CPU> --source <HF|HF-Mirror|ModelScope> [--download-uvr5]
+bash install.sh --device MPS --source <HF|HF-Mirror|ModelScope> [--download-uvr5]
 ```
+
+> MPS 上 v2Pro / v3 / v3_lora 权重半精度（fp16）会崩溃，本 fork 已在代码层强制 `is_half=False`，用户无需手动修改配置文件。
 
 ### Install Manually
 
